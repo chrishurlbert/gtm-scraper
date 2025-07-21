@@ -23,7 +23,6 @@ async function scrapeDuckDuckGo(query) {
   const link = $('.result__title a').first();
   const title = link.text().trim();
   let url = link.attr('href') || '';
-  // DuckDuckGo wraps real URL in uddg= param
   const match = url.match(/uddg=(.*)/);
   if (match) url = decodeURIComponent(match[1]);
   return { title, url };
@@ -79,3 +78,4 @@ app.post('/analyze', async (req, res) => {
 // Start server
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Listening on port ${port}`));
+
