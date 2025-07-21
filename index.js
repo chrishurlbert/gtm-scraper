@@ -5,7 +5,6 @@ import OpenAI from 'openai';
 
 const app = express();
 app.use(express.json());
-
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Health check
@@ -13,7 +12,6 @@ app.get('/', (_req, res) => {
   res.send('GTM Scraper is healthy 🚀');
 });
 
-// 1. Scrape DuckDuckGo HTML for the top result
 async function scrapeDuckDuckGo(query) {
   const { data } = await axios.get('https://duckduckgo.com/html/', {
     params: { q: query },
@@ -21,21 +19,18 @@ async function scrapeDuckDuckGo(query) {
   });
   const $ = cheerio.load(data);
   const link = $('.result__title a').first();
-  const title = link.text().trim();
   let url = link.attr('href') || '';
   const match = url.match(/uddg=(.*)/);
   if (match) url = decodeURIComponent(match[1]);
-  return { title, url };
+  return { title: link.text().trim(), url };
 }
 
-// 2. Fetch page and extract text from <p> tags
 async function fetchPageText(url) {
   const { data } = await axios.get(url, { timeout: 15000 });
   const $ = cheerio.load(data);
   return $('p').map((i, el) => $(el).text()).get().join('\n\n');
 }
 
-// 3. Call OpenAI to summarize & extract takeaways
 async function analyzeContent(title, url, content, query) {
   const prompt = `
 I searched for "${query}" and found this page:
@@ -60,7 +55,6 @@ Please provide:
   return resp.choices[0].message.content;
 }
 
-// 4. Main POST /analyze endpoint
 app.post('/analyze', async (req, res) => {
   try {
     const { query } = req.body;
@@ -75,7 +69,5 @@ app.post('/analyze', async (req, res) => {
   }
 });
 
-// Start server
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Listening on port ${port}`));
-
