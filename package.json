@@ -1,0 +1,11 @@
+{
+  "name": "dentsu-gtm-scraper",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": { "start": "node index.js" },
+  "dependencies": {
+    "express": "^4.18.2",
+    "openai": "^4.2.1",
+    "playwright": "^1.38.0"
+  }
+}
