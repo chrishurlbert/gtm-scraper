@@ -1,5 +1,6 @@
 import express from 'express';
-import { chromium } from 'playwright';
+import axios from 'axios';
+import cheerio from 'cheerio';
 import OpenAI from 'openai';
 
 const app = express();
@@ -7,38 +8,36 @@ app.use(express.json());
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Health check (optional)
+// Health check
 app.get('/', (_req, res) => {
-  res.send('GTM Scraper is running 🚀');
+  res.send('GTM Scraper is healthy 🚀');
 });
 
-// 1. Scrape DuckDuckGo for the top result
-async function scrapeDuckDuckGo(q) {
-  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
-  const page = await browser.newPage();
-  await page.goto(`https://duckduckgo.com/?q=${encodeURIComponent(q)}`);
-  await page.waitForSelector('.result__a', { timeout: 10000 });
-
-  const [first] = await page.$$eval('.result__a', els =>
-    els.slice(0, 1).map(a => ({ title: a.textContent, url: a.href }))
-  );
-
-  await browser.close();
-  return first;
+// 1. Scrape DuckDuckGo HTML for the top result
+async function scrapeDuckDuckGo(query) {
+  const { data } = await axios.get('https://duckduckgo.com/html/', {
+    params: { q: query },
+    headers: { 'User-Agent': 'Mozilla/5.0' },
+  });
+  const $ = cheerio.load(data);
+  const link = $('.result__title a').first();
+  const title = link.text().trim();
+  let url = link.attr('href') || '';
+  // DuckDuckGo wraps real URL in uddg= param
+  const match = url.match(/uddg=(.*)/);
+  if (match) url = decodeURIComponent(match[1]);
+  return { title, url };
 }
 
-// 2. Fetch the page’s paragraph text
+// 2. Fetch page and extract text from <p> tags
 async function fetchPageText(url) {
-  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
-  const page = await browser.newPage();
-  await page.goto(url, { timeout: 15000 });
-  const text = await page.$$eval('p', ps => ps.map(p => p.innerText).join('\n\n'));
-  await browser.close();
-  return text;
+  const { data } = await axios.get(url, { timeout: 15000 });
+  const $ = cheerio.load(data);
+  return $('p').map((i, el) => $(el).text()).get().join('\n\n');
 }
 
-// 3. Ask OpenAI to summarize & extract takeaways
-async function analyze(title, url, content, query) {
+// 3. Call OpenAI to summarize & extract takeaways
+async function analyzeContent(title, url, content, query) {
   const prompt = `
 I searched for "${query}" and found this page:
 
@@ -57,24 +56,26 @@ Please provide:
     model: 'gpt-4o-mini',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.7,
-    max_tokens: 500
+    max_tokens: 500,
   });
   return resp.choices[0].message.content;
 }
 
-// 4. Main endpoint
+// 4. Main POST /analyze endpoint
 app.post('/analyze', async (req, res) => {
   try {
     const { query } = req.body;
+    if (!query) throw new Error('No query provided');
     const top = await scrapeDuckDuckGo(query);
-    if (!top) throw new Error('No results found');
+    if (!top.url) throw new Error('No search results');
     const text = await fetchPageText(top.url);
-    const analysis = await analyze(top.title, top.url, text, query);
+    const analysis = await analyzeContent(top.title, top.url, text, query);
     res.json({ title: top.title, url: top.url, analysis });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// Start server
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Listening on port ${port}`));
