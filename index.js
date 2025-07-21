@@ -7,6 +7,11 @@ app.use(express.json());
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// Health check (optional)
+app.get('/', (_req, res) => {
+  res.send('GTM Scraper is running 🚀');
+});
+
 // 1. Scrape DuckDuckGo for the top result
 async function scrapeDuckDuckGo(q) {
   const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
