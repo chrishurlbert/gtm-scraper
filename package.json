@@ -1,5 +1,5 @@
 {
-  "name": "dentsu-gtm-scraper",
+  "name": "gtm-scraper",
   "version": "1.0.0",
   "type": "module",
   "main": "index.js",
@@ -13,4 +13,3 @@
     "playwright": "^1.38.0"
   }
 }
-
